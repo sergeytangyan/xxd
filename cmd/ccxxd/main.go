@@ -1,3 +1,4 @@
+// https://codingchallenges.fyi/challenges/challenge-xxd
 // https://github.com/vim/vim/blob/master/src/xxd/xxd.c
 // https://www.analyticsvidhya.com/blog/2024/06/xxd-command-in-linux/
 package main
@@ -6,22 +7,35 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 )
 
 var (
-	postscript bool
-	buffSize   int
-	groupSize  int
-	hexPad     int
+	// postscript    bool
+	byteBuffSize  int
+	byteGroupSize int
+	hexPad        int
+)
+
+const (
+	DEFAULT_G_SIZE = 2
+	DEFAULT_C_SIZE = 16
 )
 
 func main() {
-	flag.BoolVar(&postscript, "p", false, "postscript")
-	flag.IntVar(&buffSize, "c", 16, "column size")
-	flag.IntVar(&groupSize, "g", 4, "group size")
+	// postscript = *flag.Bool("p", false, "postscript")
+	flag.IntVar(&byteBuffSize, "c", DEFAULT_C_SIZE, "column size")
+	flag.IntVar(&byteGroupSize, "g", DEFAULT_G_SIZE, "group size")
 	flag.Parse()
 
-	hexPad = buffSize*2 + buffSize*2/groupSize
+	if byteBuffSize <= 0 {
+		byteBuffSize = DEFAULT_C_SIZE
+	}
+	if byteGroupSize < 0 {
+		byteGroupSize = DEFAULT_G_SIZE
+	}
+
+	hexPad = byteBuffSize*2 + byteBuffSize/byteGroupSize
 
 	filepath := flag.Arg(0)
 	f, err := os.Open(filepath)
@@ -30,16 +44,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	buf := make([]byte, buffSize)
-
 	offset := 0
+	buf := make([]byte, byteBuffSize)
+
 	for {
 		n, err := f.Read(buf)
 		if err != nil {
 			break
 		}
 
-		if n < buffSize {
+		if n < byteBuffSize {
 			buf = buf[0:n]
 		}
 
@@ -62,34 +76,27 @@ func toStrippedString(buf []byte) string {
 	return string(newBuf)
 }
 
-func toChunkedString(str string) string {
-	var newStrBuf []rune
+func toChunkedHexString(bytes []byte) string {
+	var str string
 
-	for i, r := range str {
-		if (i+1)%groupSize == 0 {
-			newStrBuf = append(newStrBuf, r, ' ')
-		} else {
-			newStrBuf = append(newStrBuf, r)
-		}
+	for b := range slices.Chunk(bytes, byteGroupSize) {
+		str += fmt.Sprintf("%x ", b)
 	}
 
-	return string(newStrBuf)
+	return str
 }
 
-func printLine(offset int, hexBuffer []byte) {
+func printLine(offset int, bytes []byte) {
 	// FIX column width!!!
 	// if postscript {
 	// 	fmt.Printf("%-32x", bufLeft)
 	// 	return
 	// }
 
-	hexStr := fmt.Sprintf("%x", hexBuffer)
-	chunkedStr := toChunkedString(hexStr)
-
 	fmt.Printf(
-		"%s: %s %s\n",
-		fmt.Sprintf("%08x", offset),             // leftpad
-		fmt.Sprintf("%-*s", hexPad, chunkedStr), // dynamic rightpad
-		toStrippedString(hexBuffer),             // replace non-ascii with '.'
+		"%08x: %-*s %s\n",
+		offset,                            // leftpadded
+		hexPad, toChunkedHexString(bytes), // rightpaded
+		toStrippedString(bytes), // replace non-ascii with '.'
 	)
 }
