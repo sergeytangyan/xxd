@@ -81,22 +81,32 @@ func parseCmd() *command {
 
 	cmd.hexPad = cmd.byteBuffSize*2 + cmd.byteBuffSize/cmd.byteGroupSize
 
+	parseInput(cmd)
+	parseOutput(cmd)
+
+	return cmd
+}
+
+func parseInput(cmd *command) {
 	inputPath := flag.Arg(0)
+
 	f, err := os.Open(inputPath)
 	dieAndDump(err)
-	cmd.in = f
 
+	cmd.in = f
+}
+
+func parseOutput(cmd *command) {
 	outputPath := flag.Arg(1)
+
 	if outputPath != "" {
-		// TODO: FIX WRITING TO FILE
-		outFile, err := os.OpenFile(outputPath, os.O_CREATE, 0o666)
+		outFile, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
 		dieAndDump(err)
+
 		cmd.out = outFile
 	} else {
 		cmd.out = os.Stdout
 	}
-
-	return cmd
 }
 
 func toStrippedString(buf []byte) string {
