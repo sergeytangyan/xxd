@@ -17,6 +17,7 @@ type command struct {
 	buffSize   int
 	groupSize  int
 	seek       int
+	len        int
 	hexPad     int
 	in         io.ReadSeekCloser
 	out        io.WriteCloser
@@ -27,6 +28,7 @@ const (
 	DEFAULT_C   = 16
 	DEFAULT_P_C = 30
 	DEFAULT_S   = 0
+	DEFAULT_L   = 0
 	MAX_C       = 256
 )
 
@@ -40,24 +42,36 @@ func xxd(cmd *command) {
 	defer cmd.out.Close()
 
 	offset := 0
+	totalBytesRead := 0
 	buf := make([]byte, cmd.buffSize)
 
 	if cmd.seek > 0 {
 		cmd.in.Seek(int64(cmd.seek), io.SeekStart)
+		offset += cmd.seek
 	}
 
 	for {
+		if cmd.len > 0 && totalBytesRead >= cmd.len {
+			break
+		}
+
 		n, err := cmd.in.Read(buf)
 		if err != nil {
 			break
 		}
 
 		if n < cmd.buffSize {
+			buf = buf[0:n] // truncate dangling data from previous iteration
+		}
+
+		if cmd.len > 0 && totalBytesRead+n > cmd.len {
+			n = n - (totalBytesRead + n - cmd.len)
 			buf = buf[0:n]
 		}
 
 		printLine(cmd, offset, buf)
 		offset += n
+		totalBytesRead += n
 	}
 }
 
@@ -72,18 +86,31 @@ func parseCmd() *command {
 	flag.IntVar(&(cmd.buffSize), "c", DEFAULT_C, "cols: Format number bytes per output line")
 	flag.IntVar(&(cmd.groupSize), "g", DEFAULT_G, "groupsize: Separate the output of number bytes per group in the hex dump")
 	flag.IntVar(&(cmd.seek), "s", DEFAULT_S, "seek: Start at offset bytes from the beginning of the input file")
+	flag.IntVar(&(cmd.len), "l", DEFAULT_L, "length: Stop after length bytes of the input file")
 	flag.Parse()
 
+	// -c
 	if cmd.buffSize > MAX_C {
 		dieAndDump(fmt.Errorf("invalid number of columns (max. %d)", MAX_C))
 	} else if cmd.buffSize <= 0 {
 		cmd.buffSize = DEFAULT_C
 	}
 
+	// -g
 	if cmd.groupSize < 0 {
 		cmd.groupSize = DEFAULT_G
 	} else if cmd.groupSize == 0 {
 		cmd.groupSize = cmd.buffSize * 2
+	}
+
+	// -s
+	if cmd.seek < 0 {
+		cmd.seek = DEFAULT_S
+	}
+
+	// -l
+	if cmd.len < 0 {
+		cmd.len = DEFAULT_L
 	}
 
 	cmd.hexPad = cmd.buffSize*2 + cmd.buffSize/cmd.groupSize
