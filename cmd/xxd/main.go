@@ -18,14 +18,15 @@ type command struct {
 	groupSize  int
 	seek       int
 	hexPad     int
+	in         io.ReadSeekCloser
 	out        io.WriteCloser
-	in         io.ReadCloser
 }
 
 const (
 	DEFAULT_G   = 2
 	DEFAULT_C   = 16
 	DEFAULT_P_C = 30
+	DEFAULT_S   = 0
 	MAX_C       = 256
 )
 
@@ -40,6 +41,10 @@ func xxd(cmd *command) {
 
 	offset := 0
 	buf := make([]byte, cmd.buffSize)
+
+	if cmd.seek > 0 {
+		cmd.in.Seek(int64(cmd.seek), io.SeekStart)
+	}
 
 	for {
 		n, err := cmd.in.Read(buf)
@@ -66,7 +71,7 @@ func parseCmd() *command {
 	})
 	flag.IntVar(&(cmd.buffSize), "c", DEFAULT_C, "cols: Format number bytes per output line")
 	flag.IntVar(&(cmd.groupSize), "g", DEFAULT_G, "groupsize: Separate the output of number bytes per group in the hex dump")
-	flag.IntVar(&(cmd.seek), "s", DEFAULT_G, "seek: Start at offset bytes from the beginning of the input file")
+	flag.IntVar(&(cmd.seek), "s", DEFAULT_S, "seek: Start at offset bytes from the beginning of the input file")
 	flag.Parse()
 
 	if cmd.buffSize > MAX_C {
