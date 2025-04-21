@@ -13,12 +13,13 @@ import (
 )
 
 type command struct {
-	postscript    bool
-	byteBuffSize  int
-	byteGroupSize int
-	hexPad        int
-	out           io.WriteCloser
-	in            io.ReadCloser
+	postscript bool
+	buffSize   int
+	groupSize  int
+	seek       int
+	hexPad     int
+	out        io.WriteCloser
+	in         io.ReadCloser
 }
 
 const (
@@ -38,7 +39,7 @@ func xxd(cmd *command) {
 	defer cmd.out.Close()
 
 	offset := 0
-	buf := make([]byte, cmd.byteBuffSize)
+	buf := make([]byte, cmd.buffSize)
 
 	for {
 		n, err := cmd.in.Read(buf)
@@ -46,7 +47,7 @@ func xxd(cmd *command) {
 			break
 		}
 
-		if n < cmd.byteBuffSize {
+		if n < cmd.buffSize {
 			buf = buf[0:n]
 		}
 
@@ -60,26 +61,27 @@ func parseCmd() *command {
 
 	flag.BoolFunc("p", "postscript", func(str string) error {
 		cmd.postscript = true
-		cmd.byteBuffSize = DEFAULT_P_C
+		cmd.buffSize = DEFAULT_P_C
 		return nil
 	})
-	flag.IntVar(&(cmd.byteBuffSize), "c", DEFAULT_C, "column size")
-	flag.IntVar(&(cmd.byteGroupSize), "g", DEFAULT_G, "group size")
+	flag.IntVar(&(cmd.buffSize), "c", DEFAULT_C, "cols: Format number bytes per output line")
+	flag.IntVar(&(cmd.groupSize), "g", DEFAULT_G, "groupsize: Separate the output of number bytes per group in the hex dump")
+	flag.IntVar(&(cmd.seek), "s", DEFAULT_G, "seek: Start at offset bytes from the beginning of the input file")
 	flag.Parse()
 
-	if cmd.byteBuffSize > MAX_C {
+	if cmd.buffSize > MAX_C {
 		dieAndDump(fmt.Errorf("invalid number of columns (max. %d)", MAX_C))
-	} else if cmd.byteBuffSize <= 0 {
-		cmd.byteBuffSize = DEFAULT_C
+	} else if cmd.buffSize <= 0 {
+		cmd.buffSize = DEFAULT_C
 	}
 
-	if cmd.byteGroupSize < 0 {
-		cmd.byteGroupSize = DEFAULT_G
-	} else if cmd.byteGroupSize == 0 {
-		cmd.byteGroupSize = cmd.byteBuffSize * 2
+	if cmd.groupSize < 0 {
+		cmd.groupSize = DEFAULT_G
+	} else if cmd.groupSize == 0 {
+		cmd.groupSize = cmd.buffSize * 2
 	}
 
-	cmd.hexPad = cmd.byteBuffSize*2 + cmd.byteBuffSize/cmd.byteGroupSize
+	cmd.hexPad = cmd.buffSize*2 + cmd.buffSize/cmd.groupSize
 
 	parseInput(cmd)
 	parseOutput(cmd)
@@ -149,8 +151,8 @@ func printLine(cmd *command, offset int, bytes []byte) {
 	fmt.Fprintf(
 		cmd.out,
 		"%08x: %-*s %s\n",
-		offset,                                                   // leftpadded
-		cmd.hexPad, toChunkedHexString(bytes, cmd.byteGroupSize), // rightpaded
+		offset,                                               // leftpadded
+		cmd.hexPad, toChunkedHexString(bytes, cmd.groupSize), // rightpaded
 		toStrippedString(bytes), // replace non-ascii with '.'
 	)
 }
