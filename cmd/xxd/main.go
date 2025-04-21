@@ -124,10 +124,14 @@ func parseCmd() *command {
 func parseInput(cmd *command) {
 	inputPath := flag.Arg(0)
 
-	f, err := os.Open(inputPath)
-	dieAndDump(err)
+	if inputPath != "" {
+		f, err := os.Open(inputPath)
+		dieAndDump(err)
 
-	cmd.in = f
+		cmd.in = f
+	} else {
+		cmd.in = os.Stdin
+	}
 }
 
 func parseOutput(cmd *command) {
@@ -169,7 +173,7 @@ func toChunkedHexString(bytes []byte, chunkSize int) string {
 
 func dieAndDump(err error) {
 	if err != nil {
-		fmt.Printf("xxd: %s\n", err)
+		fmt.Fprintf(os.Stderr, "xxd: %s\n", err)
 		os.Exit(1)
 	}
 }
